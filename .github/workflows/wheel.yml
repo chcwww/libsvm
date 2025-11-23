@@ -15,7 +15,7 @@ jobs:
     runs-on: ${{ matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, ubuntu-24.04-arm, windows-latest, windows-11-arm, macos-15-intel, macos-latest]
+        os: [windows-latest, windows-11-arm, macos-15-intel, macos-latest]
 
     steps:
       - uses: actions/checkout@v5
@@ -27,20 +27,16 @@ jobs:
         run: python -m pip install cibuildwheel==3.3.0
 
       - name: Build wheels
-        run: python -m cibuildwheel --output-dir ./python/wheelhouse
+        uses: pypa/cibuildwheel@v3.3.0
         env:
           # don't build for PyPython and windows 32-bit
           CIBW_SKIP: pp* *win32*
           # force compiler on macOS
           CXX: ${{ env.CXX }}
           CC: ${{ env.CXX }}
-        # with:
-        #   package-dir: ./python
-        #   output-dir: ./python/wheelhouse
-        # to supply options, put them in 'env', like:
-        # env:
-        #   CIBW_SOME_OPTION: value
-        #   ...
+        with:
+          package-dir: ./python
+          output-dir: ./python/wheelhouse
 
       - uses: actions/upload-artifact@v4
         with:
