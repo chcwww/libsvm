@@ -20,20 +20,20 @@ jobs:
     steps:
       - uses: actions/checkout@v5
 
-      # Used to host cibuildwheel
-      - uses: actions/setup-python@v5
-
       - name: Set MacOS compiler
         if: runner.os == 'macOS'
         run: |
           brew install gcc@13;
           echo "CXX=gcc-13" >> $GITHUB_ENV
 
+      # Used to host cibuildwheel
+      - uses: actions/setup-python@v5
+
       - name: Install cibuildwheel
-        run: python -m pip install cibuildwheel==2.23.3
+        run: python -m pip install cibuildwheel==2.10.2
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.23.3
+        uses: pypa/cibuildwheel@v2.10.2
         env:
           # don't build for PyPython and windows 32-bit
           CIBW_SKIP: pp* *win32*
