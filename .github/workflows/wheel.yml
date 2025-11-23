@@ -27,7 +27,7 @@ jobs:
         run: python -m pip install cibuildwheel==3.3.0
 
       - name: Build wheels
-        run: python -m cibuildwheel --config-file ./python/setup.py --output-dir ./python/wheelhouse
+        run: python -m cibuildwheel --output-dir ./python/wheelhouse
         env:
           # don't build for PyPython and windows 32-bit
           CIBW_SKIP: pp* *win32*
