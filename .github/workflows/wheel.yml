@@ -30,10 +30,10 @@ jobs:
       - uses: actions/setup-python@v5
 
       - name: Install cibuildwheel
-        run: python -m pip install cibuildwheel==2.10.2
+        run: python -m pip install cibuildwheel==2.20.0
 
       - name: Build wheels
-        uses: pypa/cibuildwheel@v2.10.2
+        uses: pypa/cibuildwheel@v2.20.0
         env:
           # don't build for PyPython and windows 32-bit
           CIBW_SKIP: pp* *win32*
