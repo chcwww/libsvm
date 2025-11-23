@@ -34,9 +34,9 @@ jobs:
           # force compiler on macOS
           CXX: ${{ env.CXX }}
           CC: ${{ env.CXX }}
-        with:
-          package-dir: ./python
-          output-dir: ./python/wheelhouse
+        # with:
+        #   package-dir: ./python
+        #   output-dir: ./python/wheelhouse
         # to supply options, put them in 'env', like:
         # env:
         #   CIBW_SOME_OPTION: value
@@ -45,7 +45,7 @@ jobs:
       - uses: actions/upload-artifact@v4
         with:
           name: cibw-wheels-${{ matrix.os }}-${{ strategy.job-index }}
-          path: ./wheelhouse/*.whl
+          path: ./python/wheelhouse/*.whl
 
 # jobs:
 #   build_wheels:
