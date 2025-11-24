@@ -33,21 +33,20 @@ jobs:
       #     cd ./python
       #     ls
 
-      # - name: Set MacOS compiler
-      #   if: runner.os == 'macOS'
-      #   run: |
-      #     MACOSX_DEPLOYMENT_TARGET=15.0
-      #     brew install gcc@13;
-      #     echo "CXX=gcc-13" >> $GITHUB_ENV
-      #     echo $MACOSX_DEPLOYMENT_TARGET
+      - name: Set MacOS compiler
+        if: runner.os == 'macOS'
+        run: |
+          brew install gcc@15;
+          echo "CXX=gcc-15" >> $GITHUB_ENV
+          echo $MACOSX_DEPLOYMENT_TARGET
 
       # - name: Set macOS deployment target
       #   if: runner.os == 'macOS'
       #   run: echo "MACOSX_DEPLOYMENT_TARGET=$(sw_vers -productVersion | cut -d '.' -f 1-2)" >> $GITHUB_ENV
 
-      # - name: Check macOS deployment target
-      #   if: runner.os == 'macOS'
-      #   run: echo "Deployment target version is ${{ env.MACOSX_DEPLOYMENT_TARGET }} / ${MACOSX_DEPLOYMENT_TARGET}"
+      - name: Check macOS deployment target
+        if: runner.os == 'macOS'
+        run: echo "Deployment target version is ${{ env.MACOSX_DEPLOYMENT_TARGET }} / ${MACOSX_DEPLOYMENT_TARGET}"
 
       - name: Install cibuildwheel
         run: python -m pip install cibuildwheel==3.3.0
@@ -57,9 +56,9 @@ jobs:
         env:
           # don't build for PyPython and windows 32-bit
           CIBW_SKIP: pp* *win32*
-          # # force compiler on macOS
-          # CXX: ${{ env.CXX }}
-          # CC: ${{ env.CXX }}
+          # force compiler on macOS
+          CXX: ${{ env.CXX }}
+          CC: ${{ env.CXX }}
 
       - uses: actions/upload-artifact@v4
         with:
