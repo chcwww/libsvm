@@ -56,7 +56,7 @@ jobs:
         run: cd python ; python -m cibuildwheel --output-dir wheelhouse
         env:
           # don't build for PyPython and windows 32-bit
-          CIBW_SKIP: *win32*
+          CIBW_SKIP: pp* *win32*
           # # force compiler on macOS
           # CXX: ${{ env.CXX }}
           # CC: ${{ env.CXX }}
