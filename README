@@ -1,511 +1,812 @@
-----------------------------------
---- Python interface of LIBSVM ---
-----------------------------------
+Libsvm is a simple, easy-to-use, and efficient software for SVM
+classification and regression. It solves C-SVM classification, nu-SVM
+classification, one-class-SVM, epsilon-SVM regression, and nu-SVM
+regression. It also provides an automatic model selection tool for
+C-SVM classification. This document explains the use of libsvm.
+
+Libsvm is available at
+http://www.csie.ntu.edu.tw/~cjlin/libsvm
+Please read the COPYRIGHT file before using libsvm.
 
 Table of Contents
 =================
 
-- Introduction
-- Installation via PyPI
-- Installation via Sources
 - Quick Start
-- Quick Start with Scipy
-- Design Description
-- Data Structures
-- Utility Functions
+- Installation and Data Format
+- `svm-train' Usage
+- `svm-predict' Usage
+- `svm-scale' Usage
+- Tips on Practical Use
+- Examples
+- Precomputed Kernels
+- Library Usage
+- Java Version
+- Building Windows Binaries
+- Additional Tools: Sub-sampling, Parameter Selection, Format checking, etc.
+- MATLAB/OCTAVE Interface
+- Python Interface
 - Additional Information
-
-Introduction
-============
-
-Python (http://www.python.org/) is a programming language suitable for rapid
-development. This tool provides a simple Python interface to LIBSVM, a library
-for support vector machines (http://www.csie.ntu.edu.tw/~cjlin/libsvm). The
-interface is very easy to use as the usage is the same as that of LIBSVM. The
-interface is developed with the built-in Python library "ctypes."
-
-Installation via PyPI
-=====================
-
-To install the interface from PyPI, execute the following command:
-
-> pip install -U libsvm-official
-
-Installation via Sources
-========================
-
-Alternatively, you may install the interface from sources by
-generating the LIBSVM shared library.
-
-Depending on your use cases, you can choose between local-directory
-and system-wide installation.
-
-- Local-directory installation:
-
-    On Unix systems, type
-
-    > make
-
-    This generates a .so file in the LIBSVM main directory and you
-    can run the interface in the current python directory.
-
-    For Windows, the shared library libsvm.dll is ready in the
-    directory `..\windows' and you can directly run the interface in
-    the current python directory. You can copy libsvm.dll to the
-    system directory (e.g., `C:\WINDOWS\system32\') to make it
-    system-widely available. To regenerate libsvm.dll, please
-    follow the instruction of building Windows binaries in LIBSVM
-    README.
-
-- System-wide installation:
-
-    Type
-
-    > pip install -e .
-
-    or
-
-    > pip install --user -e .
-
-    The option --user would install the package in the home directory
-    instead of the system directory, and thus does not require the
-    root privilege.
-
-    Please note that you must keep the sources after the installation.
-
-    For Windows, to run the above command, Microsoft Visual C++ and
-    other tools are needed.
-
-    In addition, DON'T use the following FAILED commands
-
-    > python setup.py install (failed to run at the python directory)
-    > pip install .
 
 Quick Start
 ===========
 
-"Quick Start with Scipy" is in the next section.
-
-There are two levels of usage. The high-level one uses utility
-functions in svmutil.py and commonutil.py (shared with LIBLINEAR and
-imported by svmutil.py). The usage is the same as the LIBSVM MATLAB
-interface.
-
->>> from libsvm.svmutil import *
-# Read data in LIBSVM format
->>> y, x = svm_read_problem('../heart_scale')
->>> m = svm_train(y[:200], x[:200], '-c 4')
->>> p_label, p_acc, p_val = svm_predict(y[200:], x[200:], m)
-
-# Construct problem in python format
-# Dense data
->>> y, x = [1,-1], [[1,0,1], [-1,0,-1]]
-# Sparse data
->>> y, x = [1,-1], [{1:1, 3:1}, {1:-1,3:-1}]
->>> prob  = svm_problem(y, x)
->>> param = svm_parameter('-t 0 -c 4 -b 1')
->>> m = svm_train(prob, param)
-
-# Precomputed kernel data (-t 4)
-# Dense data
->>> y, x = [1,-1], [[1, 2, -2], [2, -2, 2]]
-# Sparse data
->>> y, x = [1,-1], [{0:1, 1:2, 2:-2}, {0:2, 1:-2, 2:2}]
-# isKernel=True must be set for precomputed kernel
->>> prob  = svm_problem(y, x, isKernel=True)
->>> param = svm_parameter('-t 4 -c 4 -b 1')
->>> m = svm_train(prob, param)
-# For the format of precomputed kernel, please read LIBSVM README.
-
-
-# Other utility functions
->>> svm_save_model('heart_scale.model', m)
->>> m = svm_load_model('heart_scale.model')
->>> p_label, p_acc, p_val = svm_predict(y, x, m, '-b 1')
->>> ACC, MSE, SCC = evaluations(y, p_label)
-
-# Getting online help
->>> help(svm_train)
-
-The low-level use directly calls C interfaces imported by svm.py. Note that
-all arguments and return values are in ctypes format. You need to handle them
-carefully.
-
->>> from libsvm.svm import *
->>> prob = svm_problem([1,-1], [{1:1, 3:1}, {1:-1,3:-1}])
->>> param = svm_parameter('-c 4')
->>> m = libsvm.svm_train(prob, param) # m is a ctype pointer to an svm_model
-# Convert a Python-format instance to svm_nodearray, a ctypes structure
->>> x0, max_idx = gen_svm_nodearray({1:1, 3:1})
->>> label = libsvm.svm_predict(m, x0)
-
-Quick Start with Scipy
-======================
-
-Make sure you have Scipy installed to proceed in this section.
-If numba (http://numba.pydata.org) is installed, some operations will be much faster.
-
-There are two levels of usage. The high-level one uses utility functions
-in svmutil.py and the usage is the same as the LIBSVM MATLAB interface.
-
->>> import numpy as np
->>> import scipy
->>> from libsvm.svmutil import *
-# Read data in LIBSVM format
->>> y, x = svm_read_problem('../heart_scale', return_scipy = True) # y: ndarray, x: csr_matrix
->>> m = svm_train(y[:200], x[:200, :], '-c 4')
->>> p_label, p_acc, p_val = svm_predict(y[200:], x[200:, :], m)
-
-# Construct problem in Scipy format
-# Dense data: numpy ndarray
->>> y, x = np.asarray([1,-1]), np.asarray([[1,0,1], [-1,0,-1]])
-# Sparse data: scipy csr_matrix((data, (row_ind, col_ind))
->>> y, x = np.asarray([1,-1]), scipy.sparse.csr_matrix(([1, 1, -1, -1], ([0, 0, 1, 1], [0, 2, 0, 2])))
->>> prob  = svm_problem(y, x)
->>> param = svm_parameter('-t 0 -c 4 -b 1')
->>> m = svm_train(prob, param)
-
-# Precomputed kernel data (-t 4)
-# Dense data: numpy ndarray
->>> y, x = np.asarray([1,-1]), np.asarray([[1,2,-2], [2,-2,2]])
-# Sparse data: scipy csr_matrix((data, (row_ind, col_ind))
->>> y, x = np.asarray([1,-1]), scipy.sparse.csr_matrix(([1, 2, -2, 2, -2, 2], ([0, 0, 0, 1, 1, 1], [0, 1, 2, 0, 1, 2])))
-# isKernel=True must be set for precomputed kernel
->>> prob  = svm_problem(y, x, isKernel=True)
->>> param = svm_parameter('-t 4 -c 4 -b 1')
->>> m = svm_train(prob, param)
-# For the format of precomputed kernel, please read LIBSVM README.
+If you are new to SVM and if the data is not large, please go to
+`tools' directory and use easy.py after installation. It does
+everything automatic -- from data scaling to parameter selection.
 
-# Apply data scaling in Scipy format
->>> y, x = svm_read_problem('../heart_scale', return_scipy=True)
->>> scale_param = csr_find_scale_param(x, lower=0)
->>> scaled_x = csr_scale(x, scale_param)
+Usage: easy.py training_file [testing_file]
 
-# Other utility functions
->>> svm_save_model('heart_scale.model', m)
->>> m = svm_load_model('heart_scale.model')
->>> p_label, p_acc, p_val = svm_predict(y, x, m, '-b 1')
->>> ACC, MSE, SCC = evaluations(y, p_label)
+More information about parameter selection can be found in
+`tools/README.'
 
-# Getting online help
->>> help(svm_train)
+Installation and Data Format
+============================
 
-The low-level use directly calls C interfaces imported by svm.py. Note that
-all arguments and return values are in ctypes format. You need to handle them
-carefully.
+On Unix systems, type `make' to build the `svm-train', `svm-predict',
+and `svm-scale' programs. Run them without arguments to show the
+usages of them.
 
->>> from libsvm.svm import *
->>> prob = svm_problem(np.asarray([1,-1]), scipy.sparse.csr_matrix(([1, 1, -1, -1], ([0, 0, 1, 1], [0, 2, 0, 2]))))
->>> param = svm_parameter('-c 4')
->>> m = libsvm.svm_train(prob, param) # m is a ctype pointer to an svm_model
-# Convert a tuple of ndarray (index, data) to feature_nodearray, a ctypes structure
-# Note that index starts from 0, though the following example will be changed to 1:1, 3:1 internally
->>> x0, max_idx = gen_svm_nodearray((np.asarray([0,2]), np.asarray([1,1])))
->>> label = libsvm.svm_predict(m, x0)
+On other systems, consult `Makefile' to build them (e.g., see
+'Building Windows binaries' in this file) or use the pre-built
+binaries (Windows binaries are in the directory `windows').
 
-Design Description
-==================
+The format of training and testing data files is:
 
-There are two files svm.py and svmutil.py, which respectively correspond to
-low-level and high-level use of the interface.
+<label> <index1>:<value1> <index2>:<value2> ...
+.
+.
+.
 
-In svm.py, we adopt the Python built-in library "ctypes," so that
-Python can directly access C structures and interface functions defined
-in svm.h.
+Each line contains an instance and is ended by a '\n' character. 
+While there can be no feature values for a sample (i.e., a row of all zeros), 
+the <label> column must not be empty. For <label> in the training set, 
+we have the following cases.
 
-While advanced users can use structures/functions in svm.py, to
-avoid handling ctypes structures, in svmutil.py we provide some easy-to-use
-functions. The usage is similar to LIBSVM MATLAB interface.
+* classification: <label> is an integer indicating the class label
+  (multi-class is supported).
 
-Data Structures
-===============
+* For regression, <label> is the target value which can be any real
+  number.
 
-Four data structures derived from svm.h are svm_node, svm_problem, svm_parameter,
-and svm_model. They all contain fields with the same names in svm.h. Access
-these fields carefully because you directly use a C structure instead of a
-Python object. For svm_model, accessing the field directly is not recommanded.
-Programmers should use the interface functions or methods of svm_model class
-in Python to get the values. The following description introduces additional
-fields and methods.
+* For one-class SVM, <label> has no effect and can be any number.
 
-Before using the data structures, execute the following command to load the
-LIBSVM shared library:
+In the test set, <label> is used only to calculate accuracy or
+errors. If it's unknown, any number is fine. For one-class SVM, if
+non-outliers/outliers are known, their labels in the test file must be
++1/-1 for evaluation. The <label> column is read using strtod() provided by 
+the C standard library. Therefore, <label> values that are numerically 
+equivalent will be treated the same (e.g., +01e0 and 1 count as the same class).
 
-    >>> from libsvm.svm import *
+The pair <index>:<value> gives a feature (attribute) value: <index> is
+an integer starting from 1 and <value> is a real number. The only
+exception is the precomputed kernel, where <index> starts from 0; see
+the section of precomputed kernels. Indices must be in ASCENDING
+order.
 
-- class svm_node:
+A sample classification data included in this package is
+`heart_scale'. To check if your data is in a correct form, use
+`tools/checkdata.py' (details in `tools/README').
 
-    Construct an svm_node.
+Type `svm-train heart_scale', and the program will read the training
+data and output the model file `heart_scale.model'. If you have a test
+set called heart_scale.t, then type `svm-predict heart_scale.t
+heart_scale.model output' to see the prediction accuracy. The `output'
+file contains the predicted class labels.
 
-    >>> node = svm_node(idx, val)
+For classification, if training data are in only one class (i.e., all
+labels are the same), then `svm-train' issues a warning message:
+`Warning: training data in only one class. See README for details,'
+which means the training data is very unbalanced. The label in the
+training data is directly returned when testing.
 
-    idx: an integer indicates the feature index.
+There are some other useful programs in this package.
 
-    val: a float indicates the feature value.
+svm-scale:
 
-    Show the index and the value of a node.
+	This is a tool for scaling input data file.
 
-    >>> print(node)
+svm-toy:
 
-- Function: gen_svm_nodearray(xi [,feature_max=None [,isKernel=False]])
+	This is a simple graphical interface which shows how SVM
+	separate data in a plane. You can click in the window to
+	draw data points. Use "change" button to choose class
+	1, 2 or 3 (i.e., up to three classes are supported), "load"
+	button to load data from a file, "save" button to save data to
+	a file, "run" button to obtain an SVM model, and "clear"
+	button to clear the window.
 
-    Generate a feature vector from a Python list/tuple/dictionary, numpy ndarray or tuple of (index, data):
+	You can enter options in the bottom of the window, the syntax of
+	options is the same as `svm-train'.
 
-    >>> xi_ctype, max_idx = gen_svm_nodearray({1:1, 3:1, 5:-2})
+	Note that "load" and "save" consider dense data format both in
+	classification and the regression cases. For classification,
+	each data point has one label (the color) that must be 1, 2,
+	or 3 and two attributes (x-axis and y-axis values) in
+	[0,1). For regression, each data point has one target value
+	(y-axis) and one attribute (x-axis values) in [0, 1).
 
-    xi_ctype: the returned svm_nodearray (a ctypes structure)
+	Type `make' in respective directories to build them.
 
-    max_idx: the maximal feature index of xi
+	You need Qt library to build the Qt version.
+	(available from http://www.trolltech.com)
 
-    feature_max: if feature_max is assigned, features with indices larger than
-                 feature_max are removed.
+	You need GTK+ library to build the GTK version.
+	(available from http://www.gtk.org)
 
-    isKernel: if isKernel == True, the list index starts from 0 for precomputed
-              kernel. Otherwise, the list index starts from 1. The default
-              value is False.
+	The pre-built Windows binaries are in the `windows'
+	directory. We use Visual C++ on a 64-bit machine.
 
-- class svm_problem:
-
-    Construct an svm_problem instance
-
-    >>> prob = svm_problem(y, x)
-
-    y: a Python list/tuple/ndarray of l labels (type must be int/double).
-
-    x: 1. a list/tuple of l training instances. Feature vector of
-          each training instance is a list/tuple or dictionary.
-
-       2. an l * n numpy ndarray or scipy spmatrix (n: number of features).
-
-    Note that if your x contains sparse data (i.e., dictionary), the internal
-    ctypes data format is still sparse.
-
-    For pre-computed kernel, the isKernel flag should be set to True:
-
-    >>> prob = svm_problem(y, x, isKernel=True)
-
-    Please read LIBSVM README for more details of pre-computed kernel.
-
-- class svm_parameter:
-
-    Construct an svm_parameter instance
-
-    >>> param = svm_parameter('training_options')
-
-    If 'training_options' is empty, LIBSVM default values are applied.
-
-    Set param to LIBSVM default values.
-
-    >>> param.set_to_default_values()
-
-    Parse a string of options.
-
-    >>> param.parse_options('training_options')
-
-    Show values of parameters.
-
-    >>> print(param)
-
-- class svm_model:
-
-    There are two ways to obtain an instance of svm_model:
-
-    >>> model = svm_train(y, x)
-    >>> model = svm_load_model('model_file_name')
-
-    Note that the returned structure of interface functions
-    libsvm.svm_train and libsvm.svm_load_model is a ctypes pointer of
-    svm_model, which is different from the svm_model object returned
-    by svm_train and svm_load_model in svmutil.py. We provide a
-    function toPyModel for the conversion:
-
-    >>> model_ptr = libsvm.svm_train(prob, param)
-    >>> model = toPyModel(model_ptr)
-
-    If you obtain a model in a way other than the above approaches,
-    handle it carefully to avoid memory leak or segmentation fault.
-
-    Some interface functions to access LIBSVM models are wrapped as
-    members of the class svm_model:
-
-    >>> svm_type = model.get_svm_type()
-    >>> nr_class = model.get_nr_class()
-    >>> svr_probability = model.get_svr_probability()
-    >>> class_labels = model.get_labels()
-    >>> sv_indices = model.get_sv_indices()
-    >>> nr_sv = model.get_nr_sv()
-    >>> is_prob_model = model.is_probability_model()
-    >>> support_vector_coefficients = model.get_sv_coef()
-    >>> support_vectors = model.get_SV()
-
-Utility Functions
+`svm-train' Usage
 =================
 
-To use utility functions, type
+Usage: svm-train [options] training_set_file [model_file]
+options:
+-s svm_type : set type of SVM (default 0)
+	0 -- C-SVC		(multi-class classification)
+	1 -- nu-SVC		(multi-class classification)
+	2 -- one-class SVM
+	3 -- epsilon-SVR	(regression)
+	4 -- nu-SVR		(regression)
+-t kernel_type : set type of kernel function (default 2)
+	0 -- linear: u'*v
+	1 -- polynomial: (gamma*u'*v + coef0)^degree
+	2 -- radial basis function: exp(-gamma*|u-v|^2)
+	3 -- sigmoid: tanh(gamma*u'*v + coef0)
+	4 -- precomputed kernel (kernel values in training_set_file)
+-d degree : set degree in kernel function (default 3)
+-g gamma : set gamma in kernel function (default 1/num_features)
+-r coef0 : set coef0 in kernel function (default 0)
+-c cost : set the parameter C of C-SVC, epsilon-SVR, and nu-SVR (default 1)
+-n nu : set the parameter nu of nu-SVC, one-class SVM, and nu-SVR (default 0.5)
+-p epsilon : set the epsilon in loss function of epsilon-SVR (default 0.1)
+-m cachesize : set cache memory size in MB (default 100)
+-e epsilon : set tolerance of termination criterion (default 0.001)
+-h shrinking : whether to use the shrinking heuristics, 0 or 1 (default 1)
+-b probability_estimates : whether to train a model for probability estimates, 0 or 1 (default 0)
+-wi weight : set the parameter C of class i to weight*C, for C-SVC (default 1)
+-v n: n-fold cross validation mode
+-q : quiet mode (no outputs)
 
-    >>> from libsvm.svmutil import *
 
-The above command loads
-    svm_train()            : train an SVM model
-    svm_predict()          : predict testing data
-    svm_read_problem()     : read the data from a LIBSVM-format file or object.
-    svm_load_model()       : load a LIBSVM model.
-    svm_save_model()       : save model to a file.
-    evaluations()          : evaluate prediction results.
-    csr_find_scale_param() : find scaling parameter for data in csr format.
-    csr_scale()            : apply data scaling to data in csr format.
+option -v randomly splits the data into n parts and calculates cross
+validation accuracy/mean squared error on them.
 
-- Function: svm_train
+See libsvm FAQ for the meaning of outputs.
 
-    There are three ways to call svm_train()
+`svm-predict' Usage
+===================
 
-    >>> model = svm_train(y, x [, 'training_options'])
-    >>> model = svm_train(prob [, 'training_options'])
-    >>> model = svm_train(prob, param)
+Usage: svm-predict [options] test_file model_file output_file
+options:
+-b probability_estimates: whether to predict probability estimates, 0 or 1 (default 0).
 
-    y: a list/tuple/ndarray of l training labels (type must be int/double).
+model_file is the model file generated by svm-train.
+test_file is the test data you want to predict.
+svm-predict will produce output in the output_file.
 
-    x: 1. a list/tuple of l training instances. Feature vector of
-          each training instance is a list/tuple or dictionary.
+`svm-scale' Usage
+=================
 
-       2. an l * n numpy ndarray or scipy spmatrix (n: number of features).
+Usage: svm-scale [options] data_filename
+options:
+-l lower : x scaling lower limit (default -1)
+-u upper : x scaling upper limit (default +1)
+-y y_lower y_upper : y scaling limits (default: no y scaling)
+-s save_filename : save scaling parameters to save_filename
+-r restore_filename : restore scaling parameters from restore_filename
 
-    training_options: a string in the same form as that for LIBSVM command
-                      mode.
+See 'Examples' in this file for examples.
 
-    prob: an svm_problem instance generated by calling
-          svm_problem(y, x).
-          For pre-computed kernel, you should use
-          svm_problem(y, x, isKernel=True)
+Tips on Practical Use
+=====================
 
-    param: an svm_parameter instance generated by calling
-           svm_parameter('training_options')
+* Scale your data. For example, scale each attribute to [0,1] or [-1,+1].
+* For C-SVC, consider using the model selection tool in the tools directory.
+* nu in nu-SVC/one-class-SVM/nu-SVR approximates the fraction of training
+  errors and support vectors.
+* If data for classification are unbalanced (e.g. many positive and
+  few negative), try different penalty parameters C by -wi (see
+  examples below).
+* Specify larger cache size (i.e., larger -m) for huge problems.
 
-    model: the returned svm_model instance. See svm.h for details of this
-           structure. If '-v' is specified, cross validation is
-           conducted and the returned model is just a scalar: cross-validation
-           accuracy for classification and mean-squared error for regression.
+Examples
+========
 
-    To train the same data many times with different
-    parameters, the second and the third ways should be faster..
+> svm-scale -l -1 -u 1 -s range train > train.scale
+> svm-scale -r range test > test.scale
 
-    Examples:
+Scale each feature of the training data to be in [-1,1]. Scaling
+factors are stored in the file range and then used for scaling the
+test data.
 
-    >>> y, x = svm_read_problem('../heart_scale')
-    >>> prob = svm_problem(y, x)
-    >>> param = svm_parameter('-s 3 -c 5 -h 0')
-    >>> m = svm_train(y, x, '-c 5')
-    >>> m = svm_train(prob, '-t 2 -c 5')
-    >>> m = svm_train(prob, param)
-    >>> CV_ACC = svm_train(y, x, '-v 3')
+> svm-train -s 0 -c 5 -t 2 -g 0.5 -e 0.1 data_file
 
-- Function: svm_predict
+Train a classifier with RBF kernel exp(-0.5|u-v|^2), C=5, and
+stopping tolerance 0.1.
 
-    To predict testing data with a model, use
+> svm-train -s 3 -p 0.1 -t 0 data_file
 
-    >>> p_labs, p_acc, p_vals = svm_predict(y, x, model [,'predicting_options'])
+Solve SVM regression with linear kernel u'v and epsilon=0.1
+in the loss function.
 
-    y: a list/tuple/ndarray of l true labels (type must be int/double).
-       It is used for calculating the accuracy. Use [] if true labels are
-       unavailable.
+> svm-train -c 10 -w1 1 -w-2 5 -w4 2 data_file
 
-    x: 1. a list/tuple of l training instances. Feature vector of
-          each training instance is a list/tuple or dictionary.
+Train a classifier with penalty 10 = 1 * 10 for class 1, penalty 50 =
+5 * 10 for class -2, and penalty 20 = 2 * 10 for class 4.
 
-       2. an l * n numpy ndarray or scipy spmatrix (n: number of features).
+> svm-train -s 0 -c 100 -g 0.1 -v 5 data_file
 
-    predicting_options: a string of predicting options in the same format as
-                        that of LIBSVM.
+Do five-fold cross validation for the classifier using
+the parameters C = 100 and gamma = 0.1
 
-    model: an svm_model instance.
+> svm-train -s 0 -b 1 data_file
+> svm-predict -b 1 test_file data_file.model output_file
 
-    p_labels: a list of predicted labels
+Obtain a model with probability information and predict test data with
+probability estimates
 
-    p_acc: a tuple including accuracy (for classification), mean
-           squared error, and squared correlation coefficient (for
-           regression).
+Precomputed Kernels
+===================
 
-    p_vals: a list of decision values or probability estimates (if '-b 1'
-            is specified). If k is the number of classes in training data,
-            for decision values, each element includes results of predicting
-            k(k-1)/2 binary-class SVMs. For classification, k = 1 is a
-            special case. Decision value [+1] is returned for each testing
-            instance, instead of an empty list.
-            For probabilities, each element contains k values indicating
-            the probability that the testing instance is in each class.
-            For one-class SVM, the list has two elements indicating the
-            probabilities of normal instance/outlier.
-            Note that the order of classes is the same as the 'model.label'
-            field in the model structure.
+Users may precompute kernel values and input them as training and
+testing files.  Then libsvm does not need the original
+training/testing sets.
 
-    Example:
+Assume there are L training instances x1, ..., xL and.
+Let K(x, y) be the kernel
+value of two instances x and y. The input formats
+are:
 
-    >>> m = svm_train(y, x, '-c 5')
-    >>> p_labels, p_acc, p_vals = svm_predict(y, x, m)
+New training instance for xi:
 
-- Functions: svm_read_problem/svm_load_model/svm_save_model
+<label> 0:i 1:K(xi,x1) ... L:K(xi,xL)
 
-    See the usage by examples:
+New testing instance for any x:
 
-    >>> y, x = svm_read_problem('data.txt')
-    >>> with open('data.txt') as f:
-    >>>     y, x = svm_read_problem(f)
-    >>> m = svm_load_model('model_file')
-    >>> svm_save_model('model_file', m)
+<label> 0:? 1:K(x,x1) ... L:K(x,xL)
 
-- Function: evaluations
+That is, in the training file the first column must be the "ID" of
+xi. In testing, ? can be any value.
 
-    Calculate some evaluations using the true values (ty) and the predicted
-    values (pv):
+All kernel values including ZEROs must be explicitly provided.  Any
+permutation or random subsets of the training/testing files are also
+valid (see examples below).
 
-    >>> (ACC, MSE, SCC) = evaluations(ty, pv, useScipy)
+Note: the format is slightly different from the precomputed kernel
+package released in libsvmtools earlier.
 
-    ty: a list/tuple/ndarray of true values.
+Examples:
 
-    pv: a list/tuple/ndarray of predicted values.
+	Assume the original training data has three four-feature
+	instances and testing data has one instance:
 
-    useScipy: convert ty, pv to ndarray, and use scipy functions to do the evaluation
+	15  1:1 2:1 3:1 4:1
+	45      2:3     4:3
+	25          3:1
 
-    ACC: accuracy.
+	15  1:1     3:1
 
-    MSE: mean squared error.
+	If the linear kernel is used, we have the following new
+	training/testing sets:
 
-    SCC: squared correlation coefficient.
+	15  0:1 1:4 2:6  3:1
+	45  0:2 1:6 2:18 3:0
+	25  0:3 1:1 2:0  3:1
 
-- Function: csr_find_scale_parameter/csr_scale
+	15  0:? 1:2 2:0  3:1
 
-    Scale data in csr format.
+	? can be any value.
 
-    >>> param = csr_find_scale_param(x [, lower=l, upper=u])
-    >>> x = csr_scale(x, param)
+	Any subset of the above training file is also valid. For example,
 
-    x: a csr_matrix of data.
+	25  0:3 1:1 2:0  3:1
+	45  0:2 1:6 2:18 3:0
 
-    l: x scaling lower limit; default -1.
+	implies that the kernel matrix is
 
-    u: x scaling upper limit; default 1.
+		[K(2,2) K(2,3)] = [18 0]
+		[K(3,2) K(3,3)] = [0  1]
 
-    The scaling process is: x * diag(coef) + ones(l, 1) * offset'
+Library Usage
+=============
 
-    param: a dictionary of scaling parameters, where param['coef'] = coef and param['offset'] = offset.
+These functions and structures are declared in the header file
+`svm.h'.  You need to #include "svm.h" in your C/C++ source files and
+link your program with `svm.cpp'. You can see `svm-train.c' and
+`svm-predict.c' for examples showing how to use them. We define
+LIBSVM_VERSION and declare `extern int libsvm_version;' in svm.h, so
+you can check the version number.
 
-    coef: a scipy array of scaling coefficients.
+Before you classify test data, you need to construct an SVM model
+(`svm_model') using training data. A model can also be saved in
+a file for later use. Once an SVM model is available, you can use it
+to classify new data.
 
-    offset: a scipy array of scaling offsets.
+- Function: struct svm_model *svm_train(const struct svm_problem *prob,
+					const struct svm_parameter *param);
+
+    This function constructs and returns an SVM model according to
+    the given training data and parameters.
+
+    struct svm_problem describes the problem:
+
+	struct svm_problem
+	{
+		int l;
+		double *y;
+		struct svm_node **x;
+	};
+
+    where `l' is the number of training data, and `y' is an array containing
+    their target values. (integers in classification, real numbers in
+    regression) `x' is an array of pointers, each of which points to a sparse
+    representation (array of svm_node) of one training vector.
+
+    For example, if we have the following training data:
+
+    LABEL    ATTR1    ATTR2    ATTR3    ATTR4    ATTR5
+    -----    -----    -----    -----    -----    -----
+      1        0        0.1      0.2      0        0
+      2        0        0.1      0.3     -1.2      0
+      1        0.4      0        0        0        0
+      2        0        0.1      0        1.4      0.5
+      3       -0.1     -0.2      0.1      1.1      0.1
+
+    then the components of svm_problem are:
+
+    l = 5
+
+    y -> 1 2 1 2 3
+
+    x -> [ ] -> (2,0.1) (3,0.2) (-1,?)
+         [ ] -> (2,0.1) (3,0.3) (4,-1.2) (-1,?)
+         [ ] -> (1,0.4) (-1,?)
+         [ ] -> (2,0.1) (4,1.4) (5,0.5) (-1,?)
+         [ ] -> (1,-0.1) (2,-0.2) (3,0.1) (4,1.1) (5,0.1) (-1,?)
+
+    where (index,value) is stored in the structure `svm_node':
+
+	struct svm_node
+	{
+		int index;
+		double value;
+	};
+
+    index = -1 indicates the end of one vector. Note that indices must
+    be in ASCENDING order.
+
+    struct svm_parameter describes the parameters of an SVM model:
+
+	struct svm_parameter
+	{
+		int svm_type;
+		int kernel_type;
+		int degree;	/* for poly */
+		double gamma;	/* for poly/rbf/sigmoid */
+		double coef0;	/* for poly/sigmoid */
+
+		/* these are for training only */
+		double cache_size; /* in MB */
+		double eps;	/* stopping criteria */
+		double C;	/* for C_SVC, EPSILON_SVR, and NU_SVR */
+		int nr_weight;		/* for C_SVC */
+		int *weight_label;	/* for C_SVC */
+		double* weight;		/* for C_SVC */
+		double nu;	/* for NU_SVC, ONE_CLASS, and NU_SVR */
+		double p;	/* for EPSILON_SVR */
+		int shrinking;	/* use the shrinking heuristics */
+		int probability; /* do probability estimates */
+	};
+
+    svm_type can be one of C_SVC, NU_SVC, ONE_CLASS, EPSILON_SVR, NU_SVR.
+
+    C_SVC:		C-SVM classification
+    NU_SVC:		nu-SVM classification
+    ONE_CLASS:		one-class-SVM
+    EPSILON_SVR:	epsilon-SVM regression
+    NU_SVR:		nu-SVM regression
+
+    kernel_type can be one of LINEAR, POLY, RBF, SIGMOID.
+
+    LINEAR:	u'*v
+    POLY:	(gamma*u'*v + coef0)^degree
+    RBF:	exp(-gamma*|u-v|^2)
+    SIGMOID:	tanh(gamma*u'*v + coef0)
+    PRECOMPUTED: kernel values in training_set_file
+
+    cache_size is the size of the kernel cache, specified in megabytes.
+    C is the cost of constraints violation.
+    eps is the stopping criterion. (we usually use 0.00001 in nu-SVC,
+    0.001 in others). nu is the parameter in nu-SVM, nu-SVR, and
+    one-class-SVM. p is the epsilon in epsilon-insensitive loss function
+    of epsilon-SVM regression. shrinking = 1 means shrinking is conducted;
+    = 0 otherwise. probability = 1 means model with probability
+    information is obtained; = 0 otherwise.
+
+    nr_weight, weight_label, and weight are used to change the penalty
+    for some classes (If the weight for a class is not changed, it is
+    set to 1). This is useful for training classifier using unbalanced
+    input data or with asymmetric misclassification cost.
+
+    nr_weight is the number of elements in the array weight_label and
+    weight. Each weight[i] corresponds to weight_label[i], meaning that
+    the penalty of class weight_label[i] is scaled by a factor of weight[i].
+
+    If you do not want to change penalty for any of the classes,
+    just set nr_weight to 0.
+
+    *NOTE* Because svm_model contains pointers to svm_problem, you can
+    not free the memory used by svm_problem if you are still using the
+    svm_model produced by svm_train().
+
+    *NOTE* To avoid wrong parameters, svm_check_parameter() should be
+    called before svm_train().
+
+    struct svm_model stores the model obtained from the training procedure.
+    It is not recommended to directly access entries in this structure.
+    Programmers should use the interface functions to get the values.
+
+	struct svm_model
+	{
+		struct svm_parameter param;	/* parameter */
+		int nr_class;		/* number of classes, = 2 in regression/one class svm */
+		int l;			/* total #SV */
+		struct svm_node **SV;		/* SVs (SV[l]) */
+		double **sv_coef;	/* coefficients for SVs in decision functions (sv_coef[k-1][l]) */
+		double *rho;		/* constants in decision functions (rho[k*(k-1)/2]) */
+		double *probA;		/* pairwise probability information */
+		double *probB;
+		double *prob_density_marks;	/*probability information for ONE_CLASS*/
+		int *sv_indices;        /* sv_indices[0,...,nSV-1] are values in [1,...,num_traning_data] to indicate SVs in the training set */
+
+		/* for classification only */
+
+		int *label;		/* label of each class (label[k]) */
+		int *nSV;		/* number of SVs for each class (nSV[k]) */
+					/* nSV[0] + nSV[1] + ... + nSV[k-1] = l */
+		/* XXX */
+		int free_sv;		/* 1 if svm_model is created by svm_load_model*/
+					/* 0 if svm_model is created by svm_train */
+	};
+
+    param describes the parameters used to obtain the model.
+
+    nr_class is the number of classes for classification. It is a
+    non-negative integer with special cases of 0 (no training data at
+    all) and 1 (all training data in one class). For regression and
+    one-class SVM, nr_class = 2.
+
+    l is the number of support vectors. SV and sv_coef are support
+    vectors and the corresponding coefficients, respectively. Assume there are
+    k classes. For data in class j, the corresponding sv_coef includes (k-1) y*alpha vectors,
+    where alpha's are solutions of the following two class problems:
+    1 vs j, 2 vs j, ..., j-1 vs j, j vs j+1, j vs j+2, ..., j vs k
+    and y=1 for the first j-1 vectors, while y=-1 for the remaining k-j
+    vectors. For example, if there are 4 classes, sv_coef and SV are like:
+
+        +-+-+-+--------------------+
+        |1|1|1|                    |
+        |v|v|v|  SVs from class 1  |
+        |2|3|4|                    |
+        +-+-+-+--------------------+
+        |1|2|2|                    |
+        |v|v|v|  SVs from class 2  |
+        |2|3|4|                    |
+        +-+-+-+--------------------+
+        |1|2|3|                    |
+        |v|v|v|  SVs from class 3  |
+        |3|3|4|                    |
+        +-+-+-+--------------------+
+        |1|2|3|                    |
+        |v|v|v|  SVs from class 4  |
+        |4|4|4|                    |
+        +-+-+-+--------------------+
+
+    See svm_train() for an example of assigning values to sv_coef.
+
+    rho is the bias term (-b). probA and probB are parameters used in
+    probability outputs. If there are k classes, there are k*(k-1)/2
+    binary problems as well as rho, probA, and probB values. They are
+    aligned in the order of binary problems:
+    1 vs 2, 1 vs 3, ..., 1 vs k, 2 vs 3, ..., 2 vs k, ..., k-1 vs k.
+
+    sv_indices[0,...,nSV-1] are values in [1,...,num_traning_data] to
+    indicate support vectors in the training set.
+
+    label contains labels in the training data.
+
+    nSV is the number of support vectors in each class.
+
+    free_sv is a flag used to determine whether the space of SV should
+    be released in free_model_content(struct svm_model*) and
+    free_and_destroy_model(struct svm_model**). If the model is
+    generated by svm_train(), then SV points to data in svm_problem
+    and should not be removed. For example, free_sv is 0 if svm_model
+    is created by svm_train, but is 1 if created by svm_load_model.
+
+- Function: double svm_predict(const struct svm_model *model,
+                               const struct svm_node *x);
+
+    This function does classification or regression on a test vector x
+    given a model.
+
+    For a classification model, the predicted class for x is returned.
+    For a regression model, the function value of x calculated using
+    the model is returned. For an one-class model, +1 or -1 is
+    returned.
+
+- Function: void svm_cross_validation(const struct svm_problem *prob,
+	const struct svm_parameter *param, int nr_fold, double *target);
+
+    This function conducts cross validation. Data are separated to
+    nr_fold folds. Under given parameters, sequentially each fold is
+    validated using the model from training the remaining. Predicted
+    labels (of all prob's instances) in the validation process are
+    stored in the array called target.
+
+    The format of svm_prob is same as that for svm_train().
+
+- Function: int svm_get_svm_type(const struct svm_model *model);
+
+    This function gives svm_type of the model. Possible values of
+    svm_type are defined in svm.h.
+
+- Function: int svm_get_nr_class(const svm_model *model);
+
+    For a classification model, this function gives the number of
+    classes. For a regression or an one-class model, 2 is returned.
+
+- Function: void svm_get_labels(const svm_model *model, int* label)
+
+    For a classification model, this function outputs the name of
+    labels into an array called label. For regression and one-class
+    models, label is unchanged.
+
+- Function: void svm_get_sv_indices(const struct svm_model *model, int *sv_indices)
+
+    This function outputs indices of support vectors into an array called sv_indices.
+    The size of sv_indices is the number of support vectors and can be obtained by calling svm_get_nr_sv.
+    Each sv_indices[i] is in the range of [1, ..., num_traning_data].
+
+- Function: int svm_get_nr_sv(const struct svm_model *model)
+
+    This function gives the number of total support vector.
+
+- Function: double svm_get_svr_probability(const struct svm_model *model);
+
+    For a regression model with probability information, this function
+    outputs a value sigma > 0. For test data, we consider the
+    probability model: target value = predicted value + z, z: Laplace
+    distribution e^(-|z|/sigma)/(2sigma)
+
+    If the model is not for svr or does not contain required
+    information, 0 is returned.
+
+- Function: double svm_predict_values(const svm_model *model,
+				    const svm_node *x, double* dec_values)
+
+    This function gives decision values on a test vector x given a
+    model, and return the predicted label (classification) or
+    the function value (regression).
+
+    For a classification model with nr_class classes, this function
+    gives nr_class*(nr_class-1)/2 decision values in the array
+    dec_values, where nr_class can be obtained from the function
+    svm_get_nr_class. The order is label[0] vs. label[1], ...,
+    label[0] vs. label[nr_class-1], label[1] vs. label[2], ...,
+    label[nr_class-2] vs. label[nr_class-1], where label can be
+    obtained from the function svm_get_labels. The returned value is
+    the predicted class for x. Note that when nr_class = 1, this
+    function does not give any decision value.
+
+    For a regression model, dec_values[0] and the returned value are
+    both the function value of x calculated using the model. For a
+    one-class model, dec_values[0] is the decision value of x, while
+    the returned value is +1/-1.
+
+- Function: double svm_predict_probability(const struct svm_model *model,
+	    const struct svm_node *x, double* prob_estimates);
+
+    This function does classification or regression on a test vector x
+    given a model with probability information.
+
+    For a classification model with probability information, this
+    function gives nr_class probability estimates in the array
+    prob_estimates. nr_class can be obtained from the function
+    svm_get_nr_class. The class with the highest probability is
+    returned. For one-class SVM, the array prob_estimates contains
+    two elements for probabilities of normal instance/outlier,
+    while for regression, the array is unchanged. For both one-class
+    SVM and regression, the returned value is the same as that of
+    svm_predict.
+
+- Function: const char *svm_check_parameter(const struct svm_problem *prob,
+                                            const struct svm_parameter *param);
+
+    This function checks whether the parameters are within the feasible
+    range of the problem. This function should be called before calling
+    svm_train() and svm_cross_validation(). It returns NULL if the
+    parameters are feasible, otherwise an error message is returned.
+
+- Function: int svm_check_probability_model(const struct svm_model *model);
+
+    This function checks whether the model contains required
+    information to do probability estimates. If so, it returns
+    +1. Otherwise, 0 is returned. This function should be called
+    before calling svm_get_svr_probability and
+    svm_predict_probability.
+
+- Function: int svm_save_model(const char *model_file_name,
+			       const struct svm_model *model);
+
+    This function saves a model to a file; returns 0 on success, or -1
+    if an error occurs.
+
+- Function: struct svm_model *svm_load_model(const char *model_file_name);
+
+    This function returns a pointer to the model read from the file,
+    or a null pointer if the model could not be loaded.
+
+- Function: void svm_free_model_content(struct svm_model *model_ptr);
+
+    This function frees the memory used by the entries in a model structure.
+
+- Function: void svm_free_and_destroy_model(struct svm_model **model_ptr_ptr);
+
+    This function frees the memory used by a model and destroys the model
+    structure. It is equivalent to svm_destroy_model, which
+    is deprecated after version 3.0.
+
+- Function: void svm_destroy_param(struct svm_parameter *param);
+
+    This function frees the memory used by a parameter set.
+
+- Function: void svm_set_print_string_function(void (*print_func)(const char *));
+
+    Users can specify their output format by a function. Use
+        svm_set_print_string_function(NULL);
+    for default printing to stdout.
+
+    Please note that this function is not thread-safe. When multiple threads load or
+    use the same dynamic library (for example, libsvm.so.4), they actually share the
+    same memory space of the dynamic library, which results in all threads modifying
+    the same static function pointer, svm_print_string, in svm.cpp when they call this
+    function.
+
+    For example, suppose we have threads A and B. They call this function sequentially
+    and pass their own thread-local print_func into it. After that, they both call (*svm_print_string)(str)
+    once. When the last thread finishes setting it (say B), svm_print_string is set to
+    B.print_func. Now, if thread A wants to access svm_print_string, it is actually
+    accessing B.print_func rather than A.print_func, which is incorrect since we expect
+    to use the functionality of A.print_func.
+
+    Even if A.print_func and B.print_func have identical functionality, it is still risky.
+    Suppose svm_print_string is now set to B.print_func, and B deletes B.print_func after
+    finishing its work. Later, thread A calls svm_print_string, but the address points to,
+    which is B.print_func, has already been deleted. This invalid memory access will crash
+    the program. To mitigate this issue, in this example, you should ensure that A.print_func
+    and B.print_func remain valid after threads finish their work. For example, in Python,
+    you can assign them as global variables.
+
+Java Version
+============
+
+The pre-compiled java class archive `libsvm.jar' and its source files are
+in the java directory. To run the programs, use
+
+java -classpath libsvm.jar svm_train <arguments>
+java -classpath libsvm.jar svm_predict <arguments>
+java -classpath libsvm.jar svm_toy
+java -classpath libsvm.jar svm_scale <arguments>
+
+Note that you need Java 1.5 (5.0) or above to run it.
+
+You may need to add Java runtime library (like classes.zip) to the classpath.
+You may need to increase maximum Java heap size.
+
+Library usages are similar to the C version. These functions are available:
+
+public class svm {
+	public static final int LIBSVM_VERSION=336;
+	public static svm_model svm_train(svm_problem prob, svm_parameter param);
+	public static void svm_cross_validation(svm_problem prob, svm_parameter param, int nr_fold, double[] target);
+	public static int svm_get_svm_type(svm_model model);
+	public static int svm_get_nr_class(svm_model model);
+	public static void svm_get_labels(svm_model model, int[] label);
+	public static void svm_get_sv_indices(svm_model model, int[] indices);
+	public static int svm_get_nr_sv(svm_model model);
+	public static double svm_get_svr_probability(svm_model model);
+	public static double svm_predict_values(svm_model model, svm_node[] x, double[] dec_values);
+	public static double svm_predict(svm_model model, svm_node[] x);
+	public static double svm_predict_probability(svm_model model, svm_node[] x, double[] prob_estimates);
+	public static void svm_save_model(String model_file_name, svm_model model) throws IOException
+	public static svm_model svm_load_model(String model_file_name) throws IOException
+	public static String svm_check_parameter(svm_problem prob, svm_parameter param);
+	public static int svm_check_probability_model(svm_model model);
+	public static void svm_set_print_string_function(svm_print_interface print_func);
+}
+
+The library is in the "libsvm" package.
+Note that in Java version, svm_node[] is not ended with a node whose index = -1.
+
+Users can specify their output format by
+
+	your_print_func = new svm_print_interface()
+	{
+		public void print(String s)
+		{
+			// your own format
+		}
+	};
+	svm.svm_set_print_string_function(your_print_func);
+
+However, similar to the C version, it is not thread-safe. Please check the
+usage of C version svm_set_print_string_function() for details.
+
+Building Windows Binaries
+=========================
+
+Windows binaries are available in the directory `windows'. To re-build
+them via Visual C++, use the following steps:
+
+1. Open a DOS command box (or Visual Studio Command Prompt) and change
+to libsvm directory. If environment variables of VC++ have not been
+set, type
+
+"C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars64.bat"
+
+You may have to modify the above command according which version of
+VC++ or where it is installed.
+
+2. Type
+
+nmake -f Makefile.win clean all
+
+3. (optional) To build shared library libsvm.dll, type
+
+nmake -f Makefile.win lib
+
+4. (optional) To build 32-bit windows binaries, you must
+	(1) Setup "C:\Program Files (x86)\Microsoft Visual Studio\2019\Community\VC\Auxiliary\Build\vcvars32.bat" instead of vcvars64.bat
+	(2) Change CFLAGS in Makefile.win: /D _WIN64 to /D _WIN32
+
+Another way is to build them from Visual C++ environment. See details
+in libsvm FAQ.
+
+- Additional Tools: Sub-sampling, Parameter Selection, Format checking, etc.
+============================================================================
+
+See the README file in the tools directory.
+
+MATLAB/OCTAVE Interface
+=======================
+
+Please check the file README in the directory `matlab'.
+
+Python Interface
+================
+
+See the README file in python directory.
 
 Additional Information
 ======================
 
-This interface was originally written by Hsiang-Fu Yu from Department of Computer
-Science, National Taiwan University. If you find this tool useful, please
-cite LIBSVM as follows
+If you find LIBSVM helpful, please cite it as
 
 Chih-Chung Chang and Chih-Jen Lin, LIBSVM : a library for support
 vector machines. ACM Transactions on Intelligent Systems and
 Technology, 2:27:1--27:27, 2011. Software available at
 http://www.csie.ntu.edu.tw/~cjlin/libsvm
 
-For any question, please contact Chih-Jen Lin <cjlin@csie.ntu.edu.tw>,
-or check the FAQ page:
+LIBSVM implementation document is available at
+http://www.csie.ntu.edu.tw/~cjlin/papers/libsvm.pdf
 
-http://www.csie.ntu.edu.tw/~cjlin/libsvm/faq.html
+For any questions and comments, please email cjlin@csie.ntu.edu.tw
+
+Acknowledgments:
+This work was supported in part by the National Science
+Council of Taiwan via the grant NSC 89-2213-E-002-013.
+The authors thank their group members and users
+for many helpful discussions and comments. They are listed in
+http://www.csie.ntu.edu.tw/~cjlin/libsvm/acknowledgements
+
