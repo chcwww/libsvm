@@ -50,7 +50,9 @@ jobs:
         run: echo "Deployment target version is ${{ env.MACOSX_DEPLOYMENT_TARGET }} / ${MACOSX_DEPLOYMENT_TARGET}"
 
       - name: Install cibuildwheel
-        run: python -m pip install cibuildwheel==3.3.0
+        run: |
+          cd python
+          python -m pip install cibuildwheel==3.3.0
 
       - name: Build wheels
         run: python -m cibuildwheel --output-dir wheelhouse
